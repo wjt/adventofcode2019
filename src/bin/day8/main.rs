@@ -7,9 +7,9 @@ fn format_layer(layer: &str, width: usize) {
         print!("  ");
         for c in line {
             if c == '1' {
-                print!(".")
+                print!("🎅")
             } else {
-                print!(" ");
+                print!("  ");
             }
         }
         println!("");
