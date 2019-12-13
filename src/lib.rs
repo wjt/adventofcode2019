@@ -167,3 +167,25 @@ mod tests {
         assert_eq!(output, vec![program[1]]);
     }
 }
+
+pub fn gcd(x: i64, y: i64) -> i64 {
+    assert!(x >= 0);
+    assert!(y >= 0);
+    let (mut a, mut b) = if x > y { (x, y) } else { (y, x) };
+
+    while b != 0 {
+        let r = a % b;
+        a = b;
+        b = r;
+    }
+
+    a
+}
+
+pub fn lcm(x: i64, y: i64) -> i64 {
+    assert!(x >= 0);
+    assert!(y >= 0);
+
+    let g = gcd(x, y);
+    (x / g) * y
+}
