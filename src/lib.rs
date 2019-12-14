@@ -1,4 +1,5 @@
 use std::collections::VecDeque;
+use std::io::{self, BufRead};
 
 pub type Memory = Vec<i64>;
 pub type IO = VecDeque<i64>;
@@ -112,6 +113,21 @@ impl VM {
             }
         }
     }
+
+    pub fn drain_output(&mut self) -> IO {
+        self.output.split_off(0)
+    }
+}
+
+pub fn program_from_stdin() -> Memory {
+    let stdin = io::stdin();
+    let handle = stdin.lock();
+    let line = handle
+        .lines()
+        .map(|l| l.unwrap())
+        .collect::<Vec<String>>()
+        .join("");
+    line.split(",").map(|s| s.parse().unwrap()).collect()
 }
 
 #[cfg(test)]
