@@ -1,10 +1,8 @@
 extern crate adventofcode2019;
 
-use adventofcode2019::{program_from_stdin, Memory, State, VM};
-use itertools::Itertools;
+use adventofcode2019::{program_from_stdin, State, VM};
 use std::collections::BTreeMap;
 use std::fmt;
-use std::io::{self, BufRead};
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 struct Point {
@@ -49,10 +47,15 @@ impl Direction {
     }
 }
 
+const WALL: char = '█';
+const VALVE: char = '⊛';
+const CORRIDOR: char = '·';
+
 struct Game {
     known: BTreeMap<Point, char>,
     cost: BTreeMap<Point, usize>,
     droid: Point,
+    valve: Option<Point>,
     stack: Vec<Direction>,
     last: Option<Direction>,
 }
@@ -68,6 +71,7 @@ impl Game {
             known,
             cost,
             droid,
+            valve: None,
             stack: vec![Direction::N, Direction::E, Direction::S, Direction::W],
             last: None,
         }
@@ -75,7 +79,7 @@ impl Game {
 
     fn render_cell(&self, p: Point) -> char {
         if p == self.droid {
-            'D'
+            '⚙'
         } else {
             *self.known.get(&p).unwrap_or(&' ')
         }
@@ -99,69 +103,85 @@ impl Game {
         println!("");
     }
 
-    fn update(&mut self, vm: &mut VM) -> Option<(Point, usize)> {
+    fn update(&mut self, vm: &mut VM) {
         if let Some(d) = &self.last {
             let mut o = vm.drain_output();
             let result = o.pop_front().unwrap();
             assert_eq!(o.len(), 0);
             let target = d.advance(self.droid);
             let cost = self.cost[&self.droid] + 1;
-            let ret = match result {
-                0 => {
-                    self.known.insert(target, '#');
-                    None
+            if result == 0 {
+                self.known.insert(target, WALL);
+            } else {
+                if result == 2 {
+                    self.valve = Some(target);
                 }
-                1 => {
-                    self.droid = target;
-                    if !self.known.contains_key(&target) {
-                        self.known.insert(target, '.');
-                        self.cost.insert(target, cost);
-                        let (back, succs) = d.succs();
-                        self.stack.push(back);
-                        for succ in succs {
-                            if !self.known.contains_key(&succ.advance(self.droid)) {
-                                self.stack.push(succ);
-                            }
+
+                self.droid = target;
+                if !self.known.contains_key(&target) {
+                    self.known
+                        .insert(target, if result == 2 { VALVE } else { CORRIDOR });
+                    self.cost.insert(target, cost);
+                    let (back, succs) = d.succs();
+                    self.stack.push(back);
+                    for succ in succs {
+                        if !self.known.contains_key(&succ.advance(self.droid)) {
+                            self.stack.push(succ);
                         }
-                    } /* else we are retracing our steps */
-                    None
+                    }
                 }
-                2 => Some((target, cost)),
-                _ => panic!("oh no {}", result),
             };
-            //self.render();
-            ret
-        } else {
-            None
         }
     }
 
     fn submit(&mut self, vm: &mut VM) -> bool {
         self.last = self.stack.pop();
         if let Some(d) = &self.last {
-            //println!("Going {:?}\n", *d);
             vm.input.push_back(*d as i64);
             true
         } else {
             false
         }
     }
+
+    fn reset(&mut self) {
+        let p = self.valve.unwrap();
+        assert_eq!(p, self.droid);
+        self.known.clear();
+        self.known.insert(p, VALVE);
+        self.cost.clear();
+        self.cost.insert(p, 0);
+        self.stack = vec![Direction::N, Direction::E, Direction::S, Direction::W];
+    }
 }
 
 fn main() {
-    let mut program = program_from_stdin();
+    let program = program_from_stdin();
     let mut vm = VM::new(&program);
     let mut game = Game::new();
-    let mut stack = vec![1, 2, 3, 4];
     game.submit(&mut vm);
     while let State::NeedInput = vm.run() {
-        if let Some(d) = game.update(&mut vm) {
-            println!("{:?}", d);
+        game.update(&mut vm);
+        if let Some(p) = &game.valve {
+            println!("{} {}", p, game.cost[p]);
+            game.render();
             break;
         }
 
         if !game.submit(&mut vm) {
+            panic!("oh no");
+        }
+    }
+
+    /* Now do it again, starting at the same point. */
+    game.reset();
+    while game.submit(&mut vm) {
+        if let State::NeedInput = vm.run() {
+            game.update(&mut vm);
+        } else {
             break;
         }
     }
+    game.render();
+    println!("{}", game.cost.values().max().unwrap());
 }
